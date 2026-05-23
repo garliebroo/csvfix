@@ -68,3 +68,15 @@ def get_column_count_report(content: str, delimiter: str | None = None) -> dict:
     reader = csv.reader(io.StringIO(content), delimiter=delim)
     counts = [len(row) for row in reader if row]
     return dict(Counter(counts))
+
+
+def get_most_common_column_count(content: str, delimiter: str | None = None) -> int:
+    """Return the most common column count across rows.
+
+    Useful for identifying the expected width of a CSV when rows are inconsistent.
+    Returns 0 if the content has no non-empty rows.
+    """
+    report = get_column_count_report(content, delimiter)
+    if not report:
+        return 0
+    return max(report, key=lambda count: report[count])
