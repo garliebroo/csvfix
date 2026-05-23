@@ -36,6 +36,21 @@ csvfix.fix('input.csv', 'output.csv', {
 });
 ```
 
+### Detecting Issues Without Fixing
+
+If you want to inspect a file before committing to changes, use `csvfix.analyze()`:
+
+```javascript
+const report = await csvfix.analyze('input.csv');
+console.log(report);
+// {
+//   encoding: 'windows-1252',
+//   issues: ['bom', 'mismatched_quotes', 'crlf_line_endings'],
+//   rowCount: 142,
+//   columnCount: 7
+// }
+```
+
 ## Features
 
 - Detects and converts common encoding issues (Latin-1, Windows-1252, UTF-8 BOM)
