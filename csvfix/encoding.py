@@ -54,3 +54,11 @@ def write_fixed_file(file_path: str, content: str, encoding: str = "utf-8") -> N
     """Write fixed content back to a file."""
     with open(file_path, "w", encoding=encoding, newline="") as f:
         f.write(content)
+
+
+def is_encoding_supported(encoding: str) -> bool:
+    """Check whether an encoding is in the supported encodings list.
+
+    Comparison is case-insensitive.
+    """
+    return encoding.lower() in SUPPORTED_ENCODINGS
