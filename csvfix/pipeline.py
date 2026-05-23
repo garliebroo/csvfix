@@ -1,75 +1,81 @@
-"""High-level repair pipeline combining encoding, delimiter, and whitespace fixes."""
+"""High-level repair pipeline combining all csvfix modules."""
 
 from dataclasses import dataclass, field
-from pathlib import Path
+from typing import Optional
 
 from csvfix.encoding import detect_encoding, read_with_encoding, write_fixed_file
 from csvfix.delimiter import detect_delimiter, normalize_delimiter, has_inconsistent_columns
 from csvfix.whitespace import fix_whitespace_in_content, find_whitespace_issues
+from csvfix.quotes import fix_quoting_in_content, find_quoting_issues
 
 
 @dataclass
 class RepairOptions:
+    fix_encoding: bool = True
+    fix_delimiter: bool = True
     target_delimiter: str = ","
-    strip_whitespace: bool = True
-    collapse_whitespace: bool = False
-    target_encoding: str = "utf-8"
+    fix_whitespace: bool = True
+    fix_quotes: bool = True
+    output_path: Optional[str] = None
 
 
 @dataclass
 class RepairReport:
-    source_encoding: str = "unknown"
-    source_delimiter: str = ","
-    encoding_changed: bool = False
-    delimiter_changed: bool = False
-    whitespace_issues_found: int = 0
+    input_path: str
+    encoding_detected: str = "unknown"
+    delimiter_detected: str = ","
+    whitespace_issues: int = 0
+    quoting_issues: int = 0
     inconsistent_columns: bool = False
-    warnings: list[str] = field(default_factory=list)
+    steps_applied: list = field(default_factory=list)
+    output_path: Optional[str] = None
 
 
-def repair_file(
-    input_path: str | Path,
-    output_path: str | Path,
-    options: RepairOptions | None = None,
-) -> RepairReport:
-    """Run the full repair pipeline on a CSV file.
+def repair_file(input_path: str, options: Optional[RepairOptions] = None) -> RepairReport:
+    """Run the full repair pipeline on a CSV file."""
+    if options is None:
+        options = RepairOptions()
 
-    Reads the file, applies all enabled fixes, writes the result, and
-    returns a summary report.
-    """
-    opts = options or RepairOptions()
-    report = RepairReport()
+    report = RepairReport(input_path=input_path)
 
-    # --- encoding ---
-    encoding = detect_encoding(str(input_path))
-    report.source_encoding = encoding
-    content = read_with_encoding(str(input_path), encoding)
-    report.encoding_changed = encoding.lower().replace("-", "") != opts.target_encoding.lower().replace("-", "")
+    # Step 1: Encoding
+    encoding = detect_encoding(input_path)
+    report.encoding_detected = encoding
+    content = read_with_encoding(input_path, encoding=encoding)
 
-    # --- delimiter ---
-    delim = detect_delimiter(content)
-    report.source_delimiter = delim
-    report.delimiter_changed = delim != opts.target_delimiter
-    content = normalize_delimiter(content, target=opts.target_delimiter)
+    if options.fix_encoding:
+        report.steps_applied.append("encoding")
 
-    # --- column consistency check ---
-    report.inconsistent_columns = has_inconsistent_columns(
-        content, delimiter=opts.target_delimiter
-    )
-    if report.inconsistent_columns:
-        report.warnings.append("Inconsistent column counts detected after delimiter fix.")
+    # Step 2: Delimiter
+    delimiter = detect_delimiter(content)
+    report.delimiter_detected = delimiter
+    report.inconsistent_columns = has_inconsistent_columns(content, delimiter)
 
-    # --- whitespace ---
-    ws_issues = find_whitespace_issues(content, delimiter=opts.target_delimiter)
-    report.whitespace_issues_found = len(ws_issues)
-    content = fix_whitespace_in_content(
-        content,
-        delimiter=opts.target_delimiter,
-        strip=opts.strip_whitespace,
-        collapse=opts.collapse_whitespace,
-    )
+    if options.fix_delimiter and delimiter != options.target_delimiter:
+        content = normalize_delimiter(content, from_delimiter=delimiter,
+                                      to_delimiter=options.target_delimiter)
+        delimiter = options.target_delimiter
+        report.steps_applied.append("delimiter")
 
-    # --- write output ---
-    write_fixed_file(str(output_path), content, encoding=opts.target_encoding)
+    # Step 3: Whitespace
+    ws_issues = find_whitespace_issues(content)
+    report.whitespace_issues = len(ws_issues)
+
+    if options.fix_whitespace and ws_issues:
+        content = fix_whitespace_in_content(content)
+        report.steps_applied.append("whitespace")
+
+    # Step 4: Quotes
+    q_issues = find_quoting_issues(content, delimiter=delimiter)
+    report.quoting_issues = len(q_issues)
+
+    if options.fix_quotes and q_issues:
+        content = fix_quoting_in_content(content, delimiter=delimiter)
+        report.steps_applied.append("quotes")
+
+    # Write output
+    out_path = options.output_path or input_path
+    write_fixed_file(out_path, content)
+    report.output_path = out_path
 
     return report
