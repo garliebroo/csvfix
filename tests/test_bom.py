@@ -40,6 +40,13 @@ def test_detect_bom_none():
     assert encoding is None
 
 
+def test_detect_bom_empty():
+    """detect_bom should handle empty bytes without raising."""
+    bom, encoding = detect_bom(b"")
+    assert bom is None
+    assert encoding is None
+
+
 def test_strip_bom_removes_utf8_bom():
     data = BOM_UTF8 + b"hello,world"
     stripped, encoding = strip_bom(data)
@@ -60,6 +67,11 @@ def test_has_bom_true():
 
 def test_has_bom_false():
     assert has_bom(b"data") is False
+
+
+def test_has_bom_empty():
+    """has_bom should return False for empty input."""
+    assert has_bom(b"") is False
 
 
 def test_strip_bom_from_string_with_bom():
@@ -88,3 +100,12 @@ def test_find_bom_issues_clean():
     data = b"a,b\n"
     issues = find_bom_issues(data)
     assert issues == []
+
+
+def test_find_bom_issues_utf16_le():
+    """find_bom_issues should also flag UTF-16 LE BOMs."""
+    data = BOM_UTF16_LE + b"\x61\x00,\x62\x00\n\x00"
+    issues = find_bom_issues(data)
+    assert len(issues) == 1
+    assert issues[0]["type"] == "bom_detected"
+    assert "utf-16" in issues[0]["message"]
