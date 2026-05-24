@@ -61,3 +61,17 @@ def find_whitespace_issues(content: str, delimiter: str = ",") -> list[dict]:
                     {"row": row_idx, "col": col_idx, "value": repr(field)}
                 )
     return issues
+
+
+def has_whitespace_issues(content: str, delimiter: str = ",") -> bool:
+    """Return True if any field in the CSV content has whitespace problems.
+
+    This is a fast short-circuiting alternative to find_whitespace_issues
+    when you only need to know whether issues exist, not where they are.
+    """
+    reader = csv.reader(io.StringIO(content), delimiter=delimiter)
+    for row in reader:
+        for field in row:
+            if field != field.strip() or re.search(r"[ \t]{2,}", field):
+                return True
+    return False
